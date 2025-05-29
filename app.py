@@ -17,7 +17,7 @@ FOREX_PAIRS_LOCAL = [
     'GBPJPY', 'EURGBP'
 ]
 
-# === FONCTIONS TECHNIQUES (inchangées) ===
+# === FONCTIONS TECHNIQUES (identiques à ton code original) ===
 def ema(s, p): return s.ewm(span=p, adjust=False).mean()
 def rma(s, p): return s.ewm(alpha=1/p, adjust=False).mean()
 
@@ -103,16 +103,136 @@ def calculate_all_signals_pine(data):
     bear_confluences = 0
     signal_details_pine = {}
 
-    # Calcul des indicateurs (identique à ton code original)
-    # Tu peux coller ici la partie complète de ta fonction calculate_all_signals_pine()
+    # Calcul des indicateurs
+    try:
+        hma_series = hull_ma_pine(close, 20)
+        if len(hma_series) >= 2 and not hma_series.iloc[-2:].isna().any():
+            hma_val = hma_series.iloc[-1]
+            hma_prev = hma_series.iloc[-2]
+            if hma_val > hma_prev:
+                bull_confluences += 1
+                signal_details_pine['HMA'] = "▲"
+            elif hma_val < hma_prev:
+                bear_confluences += 1
+                signal_details_pine['HMA'] = "▼"
+            else:
+                signal_details_pine['HMA'] = "─"
+        else:
+            signal_details_pine['HMA'] = "N/A"
+    except:
+        signal_details_pine['HMA'] = "Err"
+
+    # RSI
+    try:
+        rsi_series = rsi_pine(ohlc4, 10)
+        if len(rsi_series) >= 1 and not pd.isna(rsi_series.iloc[-1]):
+            rsi_val = rsi_series.iloc[-1]
+            signal_details_pine['RSI_val'] = f"{rsi_val:.0f}"
+            if rsi_val > 50:
+                bull_confluences += 1
+                signal_details_pine['RSI'] = f"▲({rsi_val:.0f})"
+            elif rsi_val < 50:
+                bear_confluences += 1
+                signal_details_pine['RSI'] = f"▼({rsi_val:.0f})"
+            else:
+                signal_details_pine['RSI'] = f"─({rsi_val:.0f})"
+        else:
+            signal_details_pine['RSI'] = "N/A"
+    except:
+        signal_details_pine['RSI'] = "Err"
+
+    # ADX
+    try:
+        adx_series = adx_pine(high, low, close, 14)
+        if len(adx_series) >= 1 and not pd.isna(adx_series.iloc[-1]):
+            adx_val = adx_series.iloc[-1]
+            signal_details_pine['ADX_val'] = f"{adx_val:.0f}"
+            if adx_val >= 20:
+                bull_confluences += 1
+                bear_confluences += 1
+                signal_details_pine['ADX'] = f"✔({adx_val:.0f})"
+            else:
+                signal_details_pine['ADX'] = f"✖({adx_val:.0f})"
+        else:
+            signal_details_pine['ADX'] = "N/A"
+    except:
+        signal_details_pine['ADX'] = "Err"
+
+    # HA
+    try:
+        ha_open, ha_close = heiken_ashi_pine(data)
+        if len(ha_open) >= 1 and len(ha_close) >= 1 and not pd.isna(ha_open.iloc[-1]) and not pd.isna(ha_close.iloc[-1]):
+            if ha_close.iloc[-1] > ha_open.iloc[-1]:
+                bull_confluences += 1
+                signal_details_pine['HA'] = "▲"
+            elif ha_close.iloc[-1] < ha_open.iloc[-1]:
+                bear_confluences += 1
+                signal_details_pine['HA'] = "▼"
+            else:
+                signal_details_pine['HA'] = "─"
+        else:
+            signal_details_pine['HA'] = "N/A"
+    except:
+        signal_details_pine['HA'] = "Err"
+
+    # SHA
+    try:
+        sha_open, sha_close = smoothed_heiken_ashi_pine(data, 10, 10)
+        if len(sha_open) >= 1 and len(sha_close) >= 1 and not pd.isna(sha_open.iloc[-1]) and not pd.isna(sha_close.iloc[-1]):
+            if sha_close.iloc[-1] > sha_open.iloc[-1]:
+                bull_confluences += 1
+                signal_details_pine['SHA'] = "▲"
+            elif sha_close.iloc[-1] < sha_open.iloc[-1]:
+                bear_confluences += 1
+                signal_details_pine['SHA'] = "▼"
+            else:
+                signal_details_pine['SHA'] = "─"
+        else:
+            signal_details_pine['SHA'] = "N/A"
+    except:
+        signal_details_pine['SHA'] = "Err"
+
+    # Ichi
+    try:
+        ichimoku_signal_val = ichimoku_pine_signal(high, low, close)
+        if ichimoku_signal_val == 1:
+            bull_confluences += 1
+            signal_details_pine['Ichi'] = "▲"
+        elif ichimoku_signal_val == -1:
+            bear_confluences += 1
+            signal_details_pine['Ichi'] = "▼"
+        else:
+            signal_details_pine['Ichi'] = "─"
+    except:
+        signal_details_pine['Ichi'] = "Err"
+
+    confluence_value = max(bull_confluences, bear_confluences)
+    direction = "NEUTRE"
+    if bull_confluences > bear_confluences:
+        direction = "HAUSSIER"
+    elif bear_confluences > bull_confluences:
+        direction = "BAISSIER"
+    elif bull_confluences == bear_confluences and bull_confluences > 0:
+        direction = "CONFLIT"
 
     return {
         'confluence_P': confluence_value,
         'direction_P': direction,
         'bull_P': bull_confluences,
         'bear_P': bear_confluences,
+        'rsi_P': signal_details_pine.get('RSI_val', "N/A"),
+        'adx_P': signal_details_pine.get('ADX_val', "N/A"),
         'signals_P': signal_details_pine
     }
+
+def get_stars_pine(confluence_value):
+    if confluence_value == 6: return "⭐⭐⭐⭐⭐⭐"
+    elif confluence_value == 5: return "⭐⭐⭐⭐⭐"
+    elif confluence_value == 4: return "⭐⭐⭐⭐"
+    elif confluence_value == 3: return "⭐⭐⭐"
+    elif confluence_value == 2: return "⭐⭐"
+    elif confluence_value == 1: return "⭐"
+    else: return "WAIT"
 
 # === INTERFACE STREAMLIT ===
 col1, col2 = st.columns([1, 3])
@@ -166,3 +286,4 @@ with col2:
 
 with st.expander("ℹ️ Comment ça marche"):
     st.markdown("**Version utilisant des données locales CSV au lieu de yfinance. Tous les indicateurs sont conservés.**")
+           
